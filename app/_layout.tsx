@@ -7,7 +7,9 @@ import 'react-native-reanimated';
 import '../global.css';
 
 import AuthFlow from '@/components/auth-flow';
+import { auth } from '@/config/firebase/firebase';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { onAuthStateChanged } from 'firebase/auth';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -18,18 +20,33 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const [showAuthFlow, setShowAuthFlow] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // Hide the default splash screen once the auth flow is shown
-    SplashScreen.hideAsync();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setIsAuthenticated(!!user);
+    });
+
+    return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    // Hide the default splash screen once we know the auth state
+    if (isAuthenticated !== null) {
+      SplashScreen.hideAsync();
+    }
+  }, [isAuthenticated]);
+
   const handleAuthComplete = () => {
-    setShowAuthFlow(false);
+    setIsAuthenticated(true);
   };
 
-  if (showAuthFlow) {
+  // Show loading while determining auth state
+  if (isAuthenticated === null) {
+    return null; // or a loading spinner
+  }
+
+  if (!isAuthenticated) {
     return <AuthFlow onAuthComplete={handleAuthComplete} />;
   }
 

@@ -1,6 +1,17 @@
+import { auth, firestore, storage } from '@/config/firebase/firebase'; // Make sure this path is correct
+import { PAKISTAN_PROVINCES } from '@/utils/data/pakistani_provinces';
+import { District, Province } from '@/utils/types';
+import * as ImagePicker from 'expo-image-picker';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import React, { useState } from 'react';
+
+
 import {
+  Alert,
   Dimensions,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -8,7 +19,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -19,240 +30,21 @@ interface SignupScreenProps {
   onSignup: () => void;
 }
 
-interface District {
-  id: string;
-  name: string;
-}
-
-interface Province {
-  id: string;
-  name: string;
-  districts: District[];
-}
-
-// Hardcoded Pakistani provinces and districts
-const PAKISTAN_PROVINCES: Province[] = [
-  {
-    id: 'punjab',
-    name: 'Punjab',
-    districts: [
-      { id: 'attock', name: 'Attock' },
-      { id: 'bahawalnagar', name: 'Bahawalnagar' },
-      { id: 'bahawalpur', name: 'Bahawalpur' },
-      { id: 'bhakkar', name: 'Bhakkar' },
-      { id: 'chakwal', name: 'Chakwal' },
-      { id: 'chiniot', name: 'Chiniot' },
-      { id: 'dera-ghazi-khan', name: 'Dera Ghazi Khan' },
-      { id: 'faisalabad', name: 'Faisalabad' },
-      { id: 'gujranwala', name: 'Gujranwala' },
-      { id: 'gujrat', name: 'Gujrat' },
-      { id: 'hafizabad', name: 'Hafizabad' },
-      { id: 'jhang', name: 'Jhang' },
-      { id: 'jhelum', name: 'Jhelum' },
-      { id: 'kasur', name: 'Kasur' },
-      { id: 'khanewal', name: 'Khanewal' },
-      { id: 'khushab', name: 'Khushab' },
-      { id: 'lahore', name: 'Lahore' },
-      { id: 'layyah', name: 'Layyah' },
-      { id: 'lodhran', name: 'Lodhran' },
-      { id: 'mandi-bahauddin', name: 'Mandi Bahauddin' },
-      { id: 'mianwali', name: 'Mianwali' },
-      { id: 'multan', name: 'Multan' },
-      { id: 'muzaffargarh', name: 'Muzaffargarh' },
-      { id: 'nankana-sahib', name: 'Nankana Sahib' },
-      { id: 'narowal', name: 'Narowal' },
-      { id: 'okara', name: 'Okara' },
-      { id: 'pakpattan', name: 'Pakpattan' },
-      { id: 'rahim-yar-khan', name: 'Rahim Yar Khan' },
-      { id: 'rajanpur', name: 'Rajanpur' },
-      { id: 'rawalpindi', name: 'Rawalpindi' },
-      { id: 'sahiwal', name: 'Sahiwal' },
-      { id: 'sargodha', name: 'Sargodha' },
-      { id: 'sheikhupura', name: 'Sheikhupura' },
-      { id: 'sialkot', name: 'Sialkot' },
-      { id: 'toba-tek-singh', name: 'Toba Tek Singh' },
-      { id: 'vehari', name: 'Vehari' },
-      { id: 'wazirabad', name: 'Wazirabad' },
-      { id: 'murree', name: 'Murree' },
-      { id: 'talagang', name: 'Talagang' },
-      { id: 'kot-addu', name: 'Kot Addu' },
-      { id: 'mailsi', name: 'Mailsi' },
-    ]
-  },
-  {
-    id: 'sindh',
-    name: 'Sindh',
-    districts: [
-      { id: 'badin', name: 'Badin' },
-      { id: 'dadu', name: 'Dadu' },
-      { id: 'ghotki', name: 'Ghotki' },
-      { id: 'hyderabad', name: 'Hyderabad' },
-      { id: 'jacobabad', name: 'Jacobabad' },
-      { id: 'jamshoro', name: 'Jamshoro' },
-      { id: 'karachi-central', name: 'Karachi Central' },
-      { id: 'karachi-east', name: 'Karachi East' },
-      { id: 'karachi-south', name: 'Karachi South' },
-      { id: 'karachi-west', name: 'Karachi West' },
-      { id: 'kashmore', name: 'Kashmore' },
-      { id: 'keamari', name: 'Keamari' },
-      { id: 'khairpur', name: 'Khairpur' },
-      { id: 'korangi', name: 'Korangi' },
-      { id: 'larkana', name: 'Larkana' },
-      { id: 'malir', name: 'Malir' },
-      { id: 'matiari', name: 'Matiari' },
-      { id: 'mirpur-khas', name: 'Mirpur Khas' },
-      { id: 'naushahro-firoze', name: 'Naushahro Firoze' },
-      { id: 'qambar-shahdadkot', name: 'Qambar Shahdadkot' },
-      { id: 'sanghar', name: 'Sanghar' },
-      { id: 'shaheed-benazirabad', name: 'Shaheed Benazirabad' },
-      { id: 'shikarpur', name: 'Shikarpur' },
-      { id: 'sujawal', name: 'Sujawal' },
-      { id: 'sukkur', name: 'Sukkur' },
-      { id: 'tando-allahyar', name: 'Tando Allahyar' },
-      { id: 'tando-muhammad-khan', name: 'Tando Muhammad Khan' },
-      { id: 'tharparkar', name: 'Tharparkar' },
-      { id: 'thatta', name: 'Thatta' },
-      { id: 'umerkot', name: 'Umerkot' },
-    ]
-  },
-  {
-    id: 'kpk',
-    name: 'Khyber Pakhtunkhwa',
-    districts: [
-      { id: 'abbottabad', name: 'Abbottabad' },
-      { id: 'bajaur', name: 'Bajaur' },
-      { id: 'bannu', name: 'Bannu' },
-      { id: 'battagram', name: 'Battagram' },
-      { id: 'buner', name: 'Buner' },
-      { id: 'charsadda', name: 'Charsadda' },
-      { id: 'chitral-lower', name: 'Chitral Lower' },
-      { id: 'chitral-upper', name: 'Chitral Upper' },
-      { id: 'dera-ismail-khan', name: 'Dera Ismail Khan' },
-      { id: 'hangu', name: 'Hangu' },
-      { id: 'haripur', name: 'Haripur' },
-      { id: 'karak', name: 'Karak' },
-      { id: 'khyber', name: 'Khyber' },
-      { id: 'kohat', name: 'Kohat' },
-      { id: 'kohistan-lower', name: 'Kohistan Lower' },
-      { id: 'kohistan-upper', name: 'Kohistan Upper' },
-      { id: 'kolai-palas', name: 'Kolai-Palas' },
-      { id: 'kurram', name: 'Kurram' },
-      { id: 'lakki-marwat', name: 'Lakki Marwat' },
-      { id: 'malakand', name: 'Malakand' },
-      { id: 'mansehra', name: 'Mansehra' },
-      { id: 'mardan', name: 'Mardan' },
-      { id: 'mohmand', name: 'Mohmand' },
-      { id: 'north-waziristan', name: 'North Waziristan' },
-      { id: 'nowshera', name: 'Nowshera' },
-      { id: 'orakzai', name: 'Orakzai' },
-      { id: 'peshawar', name: 'Peshawar' },
-      { id: 'shangla', name: 'Shangla' },
-      { id: 'south-waziristan', name: 'South Waziristan' },
-      { id: 'swabi', name: 'Swabi' },
-      { id: 'swat', name: 'Swat' },
-      { id: 'tank', name: 'Tank' },
-      { id: 'torghar', name: 'Torghar' },
-      { id: 'waziristan', name: 'Waziristan' },
-      { id: 'ziarat-kpk', name: 'Ziarat' },
-    ]
-  },
-  {
-    id: 'balochistan',
-    name: 'Balochistan',
-    districts: [
-      { id: 'awaran', name: 'Awaran' },
-      { id: 'barkhan', name: 'Barkhan' },
-      { id: 'chagai', name: 'Chagai' },
-      { id: 'chaman', name: 'Chaman' },
-      { id: 'dera-bugti', name: 'Dera Bugti' },
-      { id: 'duki', name: 'Duki' },
-      { id: 'gwadar', name: 'Gwadar' },
-      { id: 'harnai', name: 'Harnai' },
-      { id: 'jafarabad', name: 'Jafarabad' },
-      { id: 'jhal-magsi', name: 'Jhal Magsi' },
-      { id: 'kalat', name: 'Kalat' },
-      { id: 'kech-turbat', name: 'Kech (Turbat)' },
-      { id: 'kharan', name: 'Kharan' },
-      { id: 'khuzdar', name: 'Khuzdar' },
-      { id: 'killa-abdullah', name: 'Killa Abdullah' },
-      { id: 'killa-saifullah', name: 'Killa Saifullah' },
-      { id: 'kohlu', name: 'Kohlu' },
-      { id: 'lasbela', name: 'Lasbela' },
-      { id: 'loralai', name: 'Loralai' },
-      { id: 'mastung', name: 'Mastung' },
-      { id: 'musakhel', name: 'Musakhel' },
-      { id: 'nasirabad', name: 'Nasirabad' },
-      { id: 'nushki', name: 'Nushki' },
-      { id: 'panjgur', name: 'Panjgur' },
-      { id: 'pishin', name: 'Pishin' },
-      { id: 'quetta', name: 'Quetta' },
-      { id: 'sherani', name: 'Sherani' },
-      { id: 'sibi', name: 'Sibi' },
-      { id: 'sohbatpur', name: 'Sohbatpur' },
-      { id: 'washuk', name: 'Washuk' },
-      { id: 'zhob', name: 'Zhob' },
-      { id: 'ziarat-bal', name: 'Ziarat' },
-      { id: 'lehri', name: 'Lehri' },
-      { id: 'surab', name: 'Surab' },
-      { id: 'jiwani', name: 'Jiwani' },
-      { id: 'hub', name: 'Hub' },
-    ]
-  },
-  {
-    id: 'gb',
-    name: 'Gilgit-Baltistan',
-    districts: [
-      { id: 'astore', name: 'Astore' },
-      { id: 'diamer', name: 'Diamer' },
-      { id: 'ghanche', name: 'Ghanche' },
-      { id: 'ghizer', name: 'Ghizer' },
-      { id: 'gilgit', name: 'Gilgit' },
-      { id: 'hunza', name: 'Hunza' },
-      { id: 'kharmang', name: 'Kharmang' },
-      { id: 'nagar', name: 'Nagar' },
-      { id: 'roundu', name: 'Roundu' },
-      { id: 'shigar', name: 'Shigar' },
-      { id: 'skardu', name: 'Skardu' },
-      { id: 'tangir', name: 'Tangir' },
-      { id: 'darel', name: 'Darel' },
-      { id: 'gupis-yasin', name: 'Gupis-Yasin' },
-    ]
-  },
-  {
-    id: 'ajk',
-    name: 'Azad Jammu & Kashmir',
-    districts: [
-      { id: 'bagh', name: 'Bagh' },
-      { id: 'bhimber', name: 'Bhimber' },
-      { id: 'haveli', name: 'Haveli' },
-      { id: 'kotli', name: 'Kotli' },
-      { id: 'mirpur-ajk', name: 'Mirpur' },
-      { id: 'muzaffarabad', name: 'Muzaffarabad' },
-      { id: 'neelum', name: 'Neelum' },
-      { id: 'poonch', name: 'Poonch' },
-      { id: 'sudhnati', name: 'Sudhnati' },
-      { id: 'hattian-bala', name: 'Hattian Bala' },
-    ]
-  },
-  {
-    id: 'ict',
-    name: 'Islamabad Capital Territory',
-    districts: [
-      { id: 'islamabad', name: 'Islamabad' },
-    ]
-  }
-];
 
 export default function SignupScreen({ onSwitchToLogin, onSignup }: SignupScreenProps) {
   const [formData, setFormData] = useState({
     name: '',
-    phoneNumber: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
     province: '',
     district: '',
   });
+  const [profileImage, setProfileImage] = useState<string | null>(null);
   const [availableDistricts, setAvailableDistricts] = useState<District[]>([]);
   const [showProvinceDropdown, setShowProvinceDropdown] = useState(false);
   const [showDistrictDropdown, setShowDistrictDropdown] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // When province is selected, update available districts
   const handleProvinceSelect = (province: Province) => {
@@ -273,12 +65,101 @@ export default function SignupScreen({ onSwitchToLogin, onSignup }: SignupScreen
     }));
   };
 
-  const handleGenerateOTP = () => {
-    // Here you would typically validate all fields and generate OTP
-    onSignup();
+  const pickImage = async () => {
+    // Request permission
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (permissionResult.granted === false) {
+      Alert.alert('Permission Required', 'Permission to access camera roll is required!');
+      return;
+    }
+
+    // Launch image picker
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      setProfileImage(result.assets[0].uri);
+    }
   };
 
-  const isFormValid = formData.name && formData.phoneNumber && formData.province && formData.district;
+  const uploadImage = async (uri: string, userId: string): Promise<string> => {
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    
+    const imageRef = ref(storage, `profile-images/${userId}/${Date.now()}.jpg`);
+    await uploadBytes(imageRef, blob);
+    
+    return await getDownloadURL(imageRef);
+  };
+
+  const handleSignup = async () => {
+    // Validate form
+    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword || !formData.province || !formData.district) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters long');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Create user account
+      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      const user = userCredential.user;
+
+      // Upload profile image if selected
+      let profileImageUrl = null;
+      if (profileImage) {
+        profileImageUrl = await uploadImage(profileImage, user.uid);
+      }
+
+      // Save user data to Firestore
+      await setDoc(doc(firestore, 'users', user.uid), {
+        name: formData.name,
+        email: formData.email,
+        province: formData.province,
+        district: formData.district,
+        profileImageUrl: profileImageUrl,
+        createdAt: new Date().toISOString(),
+      });
+
+      Alert.alert('Success', 'Account created successfully!');
+      onSignup();
+    } catch (error: any) {
+      let errorMessage = 'An error occurred during signup';
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'This email is already registered';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Invalid email address';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Password is too weak';
+      }
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const isFormValid = formData.name && formData.email && formData.password && formData.confirmPassword && formData.province && formData.district && formData.password === formData.confirmPassword;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -296,13 +177,30 @@ export default function SignupScreen({ onSwitchToLogin, onSignup }: SignupScreen
         >
           <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           <View style={styles.content}>
-            {/* Header */}
+            {/* Header with Back Button */}
             <View style={styles.headerSection}>
+              <TouchableOpacity style={styles.backButton} onPress={onSwitchToLogin}>
+                <Text style={styles.backButtonText}>← Back</Text>
+              </TouchableOpacity>
               <Text style={styles.headerText}>Enter details for sign up</Text>
             </View>
 
             {/* Form inputs */}
             <View style={styles.formSection}>
+              {/* Profile Image Selection */}
+              <View style={styles.imageSection}>
+                <TouchableOpacity style={styles.imageContainer} onPress={pickImage}>
+                  {profileImage ? (
+                    <Image source={{ uri: profileImage }} style={styles.profileImage} />
+                  ) : (
+                    <View style={styles.placeholderImage}>
+                      <Text style={styles.placeholderText}>📷</Text>
+                      <Text style={styles.placeholderSubText}>Add Photo</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
+
               {/* Name Input */}
               <View style={styles.inputContainer}>
                 <TextInput
@@ -314,14 +212,39 @@ export default function SignupScreen({ onSwitchToLogin, onSignup }: SignupScreen
                 />
               </View>
 
-              {/* Phone Number Input */}
+              {/* Email Input */}
               <View style={styles.inputContainer}>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Phone number"
-                  value={formData.phoneNumber}
-                  onChangeText={(value) => handleInputChange('phoneNumber', value)}
-                  keyboardType="phone-pad"
+                  placeholder="Email address"
+                  value={formData.email}
+                  onChangeText={(value) => handleInputChange('email', value)}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  placeholderTextColor="#999"
+                />
+              </View>
+
+              {/* Password Input */}
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Password"
+                  value={formData.password}
+                  onChangeText={(value) => handleInputChange('password', value)}
+                  secureTextEntry
+                  placeholderTextColor="#999"
+                />
+              </View>
+
+              {/* Confirm Password Input */}
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Confirm password"
+                  value={formData.confirmPassword}
+                  onChangeText={(value) => handleInputChange('confirmPassword', value)}
+                  secureTextEntry
                   placeholderTextColor="#999"
                 />
               </View>
@@ -335,7 +258,7 @@ export default function SignupScreen({ onSwitchToLogin, onSignup }: SignupScreen
                     setShowDistrictDropdown(false); // Close district dropdown
                   }}
                 >
-                  <Text style={[styles.dropdownText, !formData.province && styles.placeholderText]}>
+                  <Text style={[styles.dropdownText, !formData.province && styles.placeholderDropdownText]}>
                     {formData.province || 'Province'}
                   </Text>
                   <Text style={styles.dropdownArrow}>⌄</Text>
@@ -370,7 +293,7 @@ export default function SignupScreen({ onSwitchToLogin, onSignup }: SignupScreen
                   }}
                   disabled={!formData.province}
                 >
-                  <Text style={[styles.dropdownText, !formData.district && styles.placeholderText]}>
+                  <Text style={[styles.dropdownText, !formData.district && styles.placeholderDropdownText]}>
                     {formData.district || (formData.province ? 'District' : 'Select province first')}
                   </Text>
                   <Text style={styles.dropdownArrow}>⌄</Text>
@@ -392,16 +315,24 @@ export default function SignupScreen({ onSwitchToLogin, onSignup }: SignupScreen
                   </View>
                 )}
               </View>
+
+              {/* ReCAPTCHA Modal */}
+              {/* Removed for email/password authentication */}
             </View>
 
             {/* Button */}
             <View style={styles.buttonSection}>
               <TouchableOpacity
-                style={[styles.generateOTPButton, !isFormValid && styles.generateOTPButtonDisabled]}
-                onPress={handleGenerateOTP}
-                disabled={!isFormValid}
+                style={[
+                  styles.generateOTPButton, 
+                  !isFormValid && styles.generateOTPButtonDisabled
+                ]}
+                onPress={handleSignup}
+                disabled={!isFormValid || isLoading}
               >
-                <Text style={styles.generateOTPButtonText}>Generate OTP</Text>
+                <Text style={styles.generateOTPButtonText}>
+                  {isLoading ? 'Creating Account...' : 'Create Account'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -434,6 +365,19 @@ const styles = StyleSheet.create({
   headerSection: {
     marginBottom: 40,
     alignItems: 'center',
+    position: 'relative',
+  },
+  backButton: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: '#4A9B8E',
+    fontWeight: '500',
   },
   headerText: {
     fontSize: 16,
@@ -445,6 +389,37 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 20,
     marginBottom: 40,
+  },
+  imageSection: {
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  imageContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+  },
+  profileImage: {
+    width: '100%',
+    height: '100%',
+  },
+  placeholderImage: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholderText: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  placeholderSubText: {
+    fontSize: 12,
+    color: '#666',
   },
   inputContainer: {
     borderWidth: 1,
@@ -487,7 +462,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
-  placeholderText: {
+  placeholderDropdownText: {
     color: '#999',
   },
   dropdownArrow: {

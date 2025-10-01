@@ -31,7 +31,7 @@ const FARM_STATUS = [
 
 export default function HomeScreen() {
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.iconButton}>
@@ -124,7 +124,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F7F5F2',
   },
   container: {
+    flexGrow: 1,
     padding: 20,
+    paddingBottom: 20,
     gap: 20,
   },
   header: {

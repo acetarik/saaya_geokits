@@ -1,6 +1,9 @@
+import { auth, firestore } from '@/config/firebase/firebase';
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const SETTINGS = [
@@ -19,26 +22,104 @@ const SETTINGS = [
     title: 'About Saaya',
     icon: 'information-circle-outline',
   },
+  {
+    id: 'logout',
+    title: 'Logout',
+    icon: 'log-out-outline',
+  },
 ];
 
+interface UserData {
+  name: string;
+  email: string;
+  province: string;
+  district: string;
+  profileImageUrl?: string;
+  createdAt: string;
+}
+
 export default function AccountScreen() {
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const userDoc = await getDoc(doc(firestore, 'users', user.uid));
+          if (userDoc.exists()) {
+            setUserData(userDoc.data() as UserData);
+          }
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+        }
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      // The _layout.tsx will automatically detect auth state change and show AuthFlow
+    } catch (error) {
+      console.error('Error signing out:', error);
+      Alert.alert('Error', 'Failed to logout. Please try again.');
+    }
+  };
+
+  const handleSettingPress = (id: string) => {
+    if (id === 'logout') {
+      Alert.alert(
+        'Logout',
+        'Are you sure you want to logout?',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Logout',
+            onPress: handleLogout,
+            style: 'destructive',
+          },
+        ]
+      );
+    }
+    // Handle other settings here
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#3F9142" />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.profileCard}>
           <Image 
-            source={{ uri: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' }}
+            source={{ 
+              uri: userData?.profileImageUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' 
+            }}
             style={styles.profileImage}
           />
           <View style={styles.profileInfo}>
-            <Text style={styles.name}>Shams ud Din</Text>
-            <Text style={styles.location}>📍 Hafiz Abad</Text>
+            <Text style={styles.name}>{userData?.name || 'Guest User'}</Text>
+            <Text style={styles.location}>📍 {userData?.district || 'Location not set'}</Text>
           </View>
         </View>
 
         <View style={styles.locationCard}>
           <Text style={styles.locationTitle}>My Location</Text>
-          <Text style={styles.locationSubtitle}>Hafiz Abad</Text>
+          <Text style={styles.locationSubtitle}>{userData?.district || 'Location not set'}</Text>
           <View style={styles.weatherContainer}>
             <Text style={styles.temperature}>21°</Text>
             <View>
@@ -68,7 +149,7 @@ export default function AccountScreen() {
 
         <View style={styles.settingsList}>
           {SETTINGS.map((item) => (
-            <TouchableOpacity key={item.id} style={styles.settingItem}>
+            <TouchableOpacity key={item.id} style={styles.settingItem} onPress={() => handleSettingPress(item.id)}>
               <View style={styles.settingIconWrapper}>
                 <Ionicons name={item.icon as any} size={20} color="#3F9142" />
               </View>
@@ -88,7 +169,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F7F5F2',
   },
   container: {
+    flexGrow: 1,
     padding: 20,
+    paddingBottom: 20,
     gap: 20,
   },
   profileCard: {
@@ -222,5 +305,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#202020',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
   },
 });

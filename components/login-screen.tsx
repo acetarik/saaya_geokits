@@ -1,5 +1,8 @@
+import { auth } from '@/config/firebase/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import React, { useState } from 'react';
 import {
+    Alert,
     Dimensions,
     KeyboardAvoidingView,
     Platform,
@@ -19,11 +22,40 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ onSwitchToSignup, onLogin }: LoginScreenProps) {
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = () => {
-    // Here you would typically validate the phone number and make API call
-    onLogin();
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter both email and password');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      Alert.alert('Success', 'Logged in successfully!');
+      onLogin();
+    } catch (error: any) {
+      let errorMessage = 'An error occurred during login';
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = 'No account found with this email';
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = 'Incorrect password';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Invalid email address';
+      }
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -36,15 +68,30 @@ export default function LoginScreen({ onSwitchToSignup, onLogin }: LoginScreenPr
           {/* Main content area - keeps space for input */}
           <View style={styles.inputSection}>
             <View style={styles.inputContainer}>
-              <View style={styles.phoneIcon}>
-                <Text style={styles.phoneIconText}>📞</Text>
+              <View style={styles.emailIcon}>
+                <Text style={styles.emailIconText}>�</Text>
               </View>
               <TextInput
-                style={styles.phoneInput}
-                placeholder="Phone number"
-                value={phoneNumber}
-                onChangeText={setPhoneNumber}
-                keyboardType="phone-pad"
+                style={styles.emailInput}
+                placeholder="Email address"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholderTextColor="#999"
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <View style={styles.passwordIcon}>
+                <Text style={styles.passwordIconText}>🔒</Text>
+              </View>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
                 placeholderTextColor="#999"
               />
             </View>
@@ -53,11 +100,13 @@ export default function LoginScreen({ onSwitchToSignup, onLogin }: LoginScreenPr
           {/* Button section */}
           <View style={styles.buttonSection}>
             <TouchableOpacity
-              style={[styles.loginButton, !phoneNumber && styles.loginButtonDisabled]}
+              style={[styles.loginButton, (!email || !password) && styles.loginButtonDisabled]}
               onPress={handleLogin}
-              disabled={!phoneNumber}
+              disabled={!email || !password || isLoading}
             >
-              <Text style={styles.loginButtonText}>Login</Text>
+              <Text style={styles.loginButtonText}>
+                {isLoading ? 'Logging in...' : 'Login'}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.signupButton} onPress={onSwitchToSignup}>
@@ -87,6 +136,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingBottom: 100, // Give some space above the buttons
+    gap: 16, // Add gap between inputs
   },
   inputContainer: {
     flexDirection: 'row',
@@ -98,13 +148,24 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     backgroundColor: '#ffffff',
   },
-  phoneIcon: {
+  emailIcon: {
     marginRight: 12,
   },
-  phoneIconText: {
+  emailIconText: {
     fontSize: 18,
   },
-  phoneInput: {
+  emailInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+  },
+  passwordIcon: {
+    marginRight: 12,
+  },
+  passwordIconText: {
+    fontSize: 18,
+  },
+  passwordInput: {
     flex: 1,
     fontSize: 16,
     color: '#333',

@@ -25,7 +25,7 @@ export default function SearchScreen() {
   const disabled = useMemo(() => query.trim().length === 0, [query]);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Search Saaya</Text>
@@ -82,7 +82,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F7F5F2',
   },
   container: {
+    flexGrow: 1,
     padding: 20,
+    paddingBottom: 20,
     gap: 24,
   },
   header: {
