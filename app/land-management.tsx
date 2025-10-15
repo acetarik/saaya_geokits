@@ -71,6 +71,23 @@ export default function LandManagementScreen() {
     router.push('/land-selector');
   };
 
+  const handleViewLand = (land: LandData) => {
+    // Navigate to land selector with the land data to view it
+    router.push({
+      pathname: '/land-selector',
+      params: {
+        viewMode: 'true',
+        landId: land.id,
+        landName: land.name,
+        landArea: land.area.toString(),
+        coordinates: JSON.stringify(land.coordinates),
+        country: land.country,
+        city: land.city,
+        cropType: land.cropType || '',
+      }
+    });
+  };
+
   const handleDeleteLand = async (landId: string) => {
     Alert.alert(
       'Delete Land',
@@ -176,7 +193,10 @@ export default function LandManagementScreen() {
                     Added on {new Date(land.createdAt).toLocaleDateString()}
                   </Text>
                 </View>
-                <TouchableOpacity style={styles.viewButton}>
+                <TouchableOpacity 
+                  style={styles.viewButton}
+                  onPress={() => handleViewLand(land)}
+                >
                   <Ionicons name="eye-outline" size={18} color="#3F9142" />
                   <Text style={styles.viewButtonText}>View</Text>
                 </TouchableOpacity>
