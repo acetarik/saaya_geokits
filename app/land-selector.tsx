@@ -316,10 +316,16 @@ export default function LandSelectorScreen() {
 
     setSaving(true);
     try {
+      // Convert coordinates to a flat array or array of objects (Firestore compatible)
+      const coordinatesData = coordinates.map(coord => ({
+        longitude: coord.longitude,
+        latitude: coord.latitude
+      }));
+
       const landData = {
         userId: auth.currentUser.uid,
         name: landName.trim(),
-        coordinates: coordinates.map(coord => [coord.longitude, coord.latitude]),
+        coordinates: coordinatesData,
         area: landArea,
         country: location?.country || 'Unknown',
         city: location?.city || 'Unknown',

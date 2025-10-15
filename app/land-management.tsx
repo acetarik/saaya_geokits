@@ -18,7 +18,7 @@ interface LandData {
   id: string;
   name: string;
   area: number;
-  coordinates: [number, number][];
+  coordinates: { longitude: number; latitude: number }[];
   country: string;
   city: string;
   cropType?: string;
@@ -35,14 +35,24 @@ export default function LandManagementScreen() {
 
   const fetchUserLands = async () => {
     try {
-      if (!auth.currentUser) return;
+      if (!auth.currentUser) {
+        console.log('No authenticated user found');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('Current user:', auth.currentUser.uid);
+      console.log('User phone number:', auth.currentUser.phoneNumber);
       
       const landsQuery = query(
         collection(firestore, 'lands'),
         where('userId', '==', auth.currentUser.uid)
       );
       
+      console.log('Executing query for userId:', auth.currentUser.uid);
       const snapshot = await getDocs(landsQuery);
+      console.log('Query executed successfully, docs count:', snapshot.docs.length);
+      
       const landData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -51,7 +61,7 @@ export default function LandManagementScreen() {
       setLands(landData);
     } catch (error) {
       console.error('Error fetching lands:', error);
-      Alert.alert('Error', 'Failed to load your lands. Please try again.');
+      Alert.alert('Error', 'Failed to load your lands. Please check Firebase security rules.');
     } finally {
       setLoading(false);
     }
