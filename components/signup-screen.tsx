@@ -9,17 +9,17 @@ import React, { useState } from 'react';
 
 
 import {
-  Alert,
-  Dimensions,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    Alert,
+    Dimensions,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -87,14 +87,37 @@ export default function SignupScreen({ onSwitchToLogin, onSignup }: SignupScreen
     }
   };
 
-  const uploadImage = async (uri: string, userId: string): Promise<string> => {
-    const response = await fetch(uri);
-    const blob = await response.blob();
-    
-    const imageRef = ref(storage, `profile-images/${userId}/${Date.now()}.jpg`);
-    await uploadBytes(imageRef, blob);
-    
-    return await getDownloadURL(imageRef);
+  const uploadImage = (uri: string, userId: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.onload = function () {
+        const blob = xhr.response;
+        const imageRef = ref(storage, `profile-images/${userId}/${Date.now()}.jpg`);
+        
+        uploadBytes(imageRef, blob as Blob)
+          .then(snapshot => {
+            getDownloadURL(snapshot.ref)
+              .then(url => {
+                resolve(url);
+              })
+              .catch(error => {
+                console.error("Error getting download URL:", error);
+                reject(error);
+              });
+          })
+          .catch(error => {
+            console.error("Error uploading image:", error);
+            reject(error);
+          });
+      };
+      xhr.onerror = function (e) {
+        console.log(e);
+        reject(new TypeError('Network request failed'));
+      };
+      xhr.responseType = 'blob';
+      xhr.open('GET', uri, true);
+      xhr.send(null);
+    });
   };
 
   const handleSignup = async () => {

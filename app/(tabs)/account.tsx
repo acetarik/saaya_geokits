@@ -1,5 +1,6 @@
 import { auth, firestore } from '@/config/firebase/firebase';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
@@ -7,6 +8,11 @@ import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, Touchabl
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const SETTINGS = [
+  {
+    id: 'land-management',
+    title: 'Land Management',
+    icon: 'map-outline',
+  },
   {
     id: 'settings',
     title: 'Account Settings',
@@ -87,6 +93,8 @@ export default function AccountScreen() {
           },
         ]
       );
+    } else if (id === 'land-management') {
+      router.push('/land-management');
     }
     // Handle other settings here
   };

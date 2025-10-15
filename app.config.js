@@ -36,6 +36,12 @@ export default{
         {
           backgroundColor: "#ffffff"
         }
+      ],
+      [
+        "@rnmapbox/maps",
+        {
+          RNMapboxMapsDownloadToken: process.env.EXPO_PUBLIC_MAPBOX_TOKEN
+        }
       ]
     ],
     experiments: {
@@ -50,6 +56,7 @@ export default{
       firebaseMessagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
       firebaseAppId: process.env.FIREBASE_APP_ID,
       firebaseMeasurementId: process.env.FIREBASE_MEASUREMENT_ID,
+      mapboxToken: process.env.EXPO_PUBLIC_MAPBOX_TOKEN,
     }
 
   }
