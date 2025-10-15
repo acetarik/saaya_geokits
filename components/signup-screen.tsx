@@ -1,25 +1,26 @@
 import { auth, firestore, storage } from '@/config/firebase/firebase'; // Make sure this path is correct
 import { PAKISTAN_PROVINCES } from '@/utils/data/pakistani_provinces';
 import { District, Province } from '@/utils/types';
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import * as ImagePicker from 'expo-image-picker';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { PhoneAuthProvider, signInWithCredential } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 
 
 import {
-    Alert,
-    Dimensions,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Dimensions,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -34,17 +35,19 @@ interface SignupScreenProps {
 export default function SignupScreen({ onSwitchToLogin, onSignup }: SignupScreenProps) {
   const [formData, setFormData] = useState({
     name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
+    phoneNumber: '',
     province: '',
     district: '',
   });
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationId, setVerificationId] = useState('');
+  const [isCodeSent, setIsCodeSent] = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [availableDistricts, setAvailableDistricts] = useState<District[]>([]);
   const [showProvinceDropdown, setShowProvinceDropdown] = useState(false);
   const [showDistrictDropdown, setShowDistrictDropdown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null);
 
   // When province is selected, update available districts
   const handleProvinceSelect = (province: Province) => {
@@ -120,33 +123,54 @@ export default function SignupScreen({ onSwitchToLogin, onSignup }: SignupScreen
     });
   };
 
-  const handleSignup = async () => {
+  const sendVerificationCode = async () => {
     // Validate form
-    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword || !formData.province || !formData.district) {
+    if (!formData.name || !formData.phoneNumber || !formData.province || !formData.district) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
 
-    if (formData.password !== formData.confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+    // Validate phone number format (basic validation)
+    const phoneRegex = /^\+[1-9]\d{1,14}$/;
+    if (!phoneRegex.test(formData.phoneNumber)) {
+      Alert.alert('Error', 'Please enter a valid phone number with country code (e.g., +923001234567)');
       return;
     }
 
     setIsLoading(true);
     try {
-      // Create user account
-      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      const phoneProvider = new PhoneAuthProvider(auth);
+      const verificationId = await phoneProvider.verifyPhoneNumber(
+        formData.phoneNumber,
+        recaptchaVerifier.current!
+      );
+      setVerificationId(verificationId);
+      setIsCodeSent(true);
+      Alert.alert('Success', 'Verification code sent to your phone');
+    } catch (error: any) {
+      let errorMessage = 'An error occurred while sending verification code';
+      if (error.code === 'auth/invalid-phone-number') {
+        errorMessage = 'Invalid phone number';
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = 'Too many requests. Please try again later';
+      }
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignup = async () => {
+    if (!verificationCode) {
+      Alert.alert('Error', 'Please enter the verification code');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Verify phone number
+      const credential = PhoneAuthProvider.credential(verificationId, verificationCode);
+      const userCredential = await signInWithCredential(auth, credential);
       const user = userCredential.user;
 
       // Upload profile image if selected
@@ -158,7 +182,7 @@ export default function SignupScreen({ onSwitchToLogin, onSignup }: SignupScreen
       // Save user data to Firestore
       await setDoc(doc(firestore, 'users', user.uid), {
         name: formData.name,
-        email: formData.email,
+        phoneNumber: formData.phoneNumber,
         province: formData.province,
         district: formData.district,
         profileImageUrl: profileImageUrl,
@@ -169,12 +193,10 @@ export default function SignupScreen({ onSwitchToLogin, onSignup }: SignupScreen
       onSignup();
     } catch (error: any) {
       let errorMessage = 'An error occurred during signup';
-      if (error.code === 'auth/email-already-in-use') {
-        errorMessage = 'This email is already registered';
-      } else if (error.code === 'auth/invalid-email') {
-        errorMessage = 'Invalid email address';
-      } else if (error.code === 'auth/weak-password') {
-        errorMessage = 'Password is too weak';
+      if (error.code === 'auth/invalid-verification-code') {
+        errorMessage = 'Invalid verification code';
+      } else if (error.code === 'auth/code-expired') {
+        errorMessage = 'Verification code has expired';
       }
       Alert.alert('Error', errorMessage);
     } finally {
@@ -182,10 +204,16 @@ export default function SignupScreen({ onSwitchToLogin, onSignup }: SignupScreen
     }
   };
 
-  const isFormValid = formData.name && formData.email && formData.password && formData.confirmPassword && formData.province && formData.district && formData.password === formData.confirmPassword;
+  const isFormValid = !isCodeSent 
+    ? formData.name && formData.phoneNumber && formData.province && formData.district
+    : verificationCode;
 
   return (
     <SafeAreaView style={styles.container}>
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={auth.app.options}
+      />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoidingView}
@@ -235,42 +263,33 @@ export default function SignupScreen({ onSwitchToLogin, onSignup }: SignupScreen
                 />
               </View>
 
-              {/* Email Input */}
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Email address"
-                  value={formData.email}
-                  onChangeText={(value) => handleInputChange('email', value)}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  placeholderTextColor="#999"
-                />
-              </View>
+              {/* Phone Number Input */}
+              {!isCodeSent && (
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Phone number (+923001234567)"
+                    value={formData.phoneNumber}
+                    onChangeText={(value) => handleInputChange('phoneNumber', value)}
+                    keyboardType="phone-pad"
+                    placeholderTextColor="#999"
+                  />
+                </View>
+              )}
 
-              {/* Password Input */}
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Password"
-                  value={formData.password}
-                  onChangeText={(value) => handleInputChange('password', value)}
-                  secureTextEntry
-                  placeholderTextColor="#999"
-                />
-              </View>
-
-              {/* Confirm Password Input */}
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Confirm password"
-                  value={formData.confirmPassword}
-                  onChangeText={(value) => handleInputChange('confirmPassword', value)}
-                  secureTextEntry
-                  placeholderTextColor="#999"
-                />
-              </View>
+              {/* Verification Code Input */}
+              {isCodeSent && (
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Verification code"
+                    value={verificationCode}
+                    onChangeText={setVerificationCode}
+                    keyboardType="number-pad"
+                    placeholderTextColor="#999"
+                  />
+                </View>
+              )}
 
               {/* Province Dropdown */}
               <View style={[styles.dropdownContainer, showProvinceDropdown && styles.provinceDropdownActive]}>
@@ -345,18 +364,46 @@ export default function SignupScreen({ onSwitchToLogin, onSignup }: SignupScreen
 
             {/* Button */}
             <View style={styles.buttonSection}>
-              <TouchableOpacity
-                style={[
-                  styles.generateOTPButton, 
-                  !isFormValid && styles.generateOTPButtonDisabled
-                ]}
-                onPress={handleSignup}
-                disabled={!isFormValid || isLoading}
-              >
-                <Text style={styles.generateOTPButtonText}>
-                  {isLoading ? 'Creating Account...' : 'Create Account'}
-                </Text>
-              </TouchableOpacity>
+              {!isCodeSent ? (
+                <TouchableOpacity
+                  style={[
+                    styles.generateOTPButton, 
+                    !isFormValid && styles.generateOTPButtonDisabled
+                  ]}
+                  onPress={sendVerificationCode}
+                  disabled={!isFormValid || isLoading}
+                >
+                  <Text style={styles.generateOTPButtonText}>
+                    {isLoading ? 'Sending Code...' : 'Send Verification Code'}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={[
+                      styles.generateOTPButton, 
+                      !isFormValid && styles.generateOTPButtonDisabled
+                    ]}
+                    onPress={handleSignup}
+                    disabled={!isFormValid || isLoading}
+                  >
+                    <Text style={styles.generateOTPButtonText}>
+                      {isLoading ? 'Creating Account...' : 'Create Account'}
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={styles.resendButton}
+                    onPress={() => {
+                      setIsCodeSent(false);
+                      setVerificationCode('');
+                      setVerificationId('');
+                    }}
+                  >
+                    <Text style={styles.resendButtonText}>Change Phone Number</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           </View>
         </ScrollView>
@@ -540,6 +587,20 @@ const styles = StyleSheet.create({
   },
   generateOTPButtonText: {
     color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  resendButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#4A9B8E',
+    borderRadius: 25,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  resendButtonText: {
+    color: '#4A9B8E',
     fontSize: 16,
     fontWeight: '600',
   },

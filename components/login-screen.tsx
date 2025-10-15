@@ -1,16 +1,17 @@
 import { auth } from '@/config/firebase/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import React, { useState } from 'react';
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
+import { PhoneAuthProvider, signInWithCredential } from 'firebase/auth';
+import React, { useRef, useState } from 'react';
 import {
-    Alert,
-    Dimensions,
-    KeyboardAvoidingView,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -22,35 +23,67 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ onSwitchToSignup, onLogin }: LoginScreenProps) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationId, setVerificationId] = useState('');
+  const [isCodeSent, setIsCodeSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null);
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please enter both email and password');
+  const sendVerificationCode = async () => {
+    if (!phoneNumber) {
+      Alert.alert('Error', 'Please enter your phone number');
       return;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+    // Validate phone number format (basic validation)
+    const phoneRegex = /^\+[1-9]\d{1,14}$/;
+    if (!phoneRegex.test(phoneNumber)) {
+      Alert.alert('Error', 'Please enter a valid phone number with country code (e.g., +923001234567)');
       return;
     }
 
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const phoneProvider = new PhoneAuthProvider(auth);
+      const verificationId = await phoneProvider.verifyPhoneNumber(
+        phoneNumber,
+        recaptchaVerifier.current!
+      );
+      setVerificationId(verificationId);
+      setIsCodeSent(true);
+      Alert.alert('Success', 'Verification code sent to your phone');
+    } catch (error: any) {
+      let errorMessage = 'An error occurred while sending verification code';
+      if (error.code === 'auth/invalid-phone-number') {
+        errorMessage = 'Invalid phone number';
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = 'Too many requests. Please try again later';
+      }
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogin = async () => {
+    if (!verificationCode) {
+      Alert.alert('Error', 'Please enter the verification code');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const credential = PhoneAuthProvider.credential(verificationId, verificationCode);
+      await signInWithCredential(auth, credential);
       Alert.alert('Success', 'Logged in successfully!');
       onLogin();
     } catch (error: any) {
       let errorMessage = 'An error occurred during login';
-      if (error.code === 'auth/user-not-found') {
-        errorMessage = 'No account found with this email';
-      } else if (error.code === 'auth/wrong-password') {
-        errorMessage = 'Incorrect password';
-      } else if (error.code === 'auth/invalid-email') {
-        errorMessage = 'Invalid email address';
+      if (error.code === 'auth/invalid-verification-code') {
+        errorMessage = 'Invalid verification code';
+      } else if (error.code === 'auth/code-expired') {
+        errorMessage = 'Verification code has expired';
       }
       Alert.alert('Error', errorMessage);
     } finally {
@@ -60,6 +93,10 @@ export default function LoginScreen({ onSwitchToSignup, onLogin }: LoginScreenPr
 
   return (
     <SafeAreaView style={styles.container}>
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={auth.app.options}
+      />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoidingView}
@@ -67,47 +104,75 @@ export default function LoginScreen({ onSwitchToSignup, onLogin }: LoginScreenPr
         <View style={styles.content}>
           {/* Main content area - keeps space for input */}
           <View style={styles.inputSection}>
-            <View style={styles.inputContainer}>
-              <View style={styles.emailIcon}>
-                <Text style={styles.emailIconText}>�</Text>
+            {!isCodeSent ? (
+              <View style={styles.inputContainer}>
+                <View style={styles.phoneIcon}>
+                  <Text style={styles.phoneIconText}>📱</Text>
+                </View>
+                <TextInput
+                  style={styles.phoneInput}
+                  placeholder="Phone number (+923001234567)"
+                  value={phoneNumber}
+                  onChangeText={setPhoneNumber}
+                  keyboardType="phone-pad"
+                  placeholderTextColor="#999"
+                />
               </View>
-              <TextInput
-                style={styles.emailInput}
-                placeholder="Email address"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                placeholderTextColor="#999"
-              />
-            </View>
-
-            <View style={styles.inputContainer}>
-              <View style={styles.passwordIcon}>
-                <Text style={styles.passwordIconText}>🔒</Text>
+            ) : (
+              <View style={styles.inputContainer}>
+                <View style={styles.codeIcon}>
+                  <Text style={styles.codeIconText}>�</Text>
+                </View>
+                <TextInput
+                  style={styles.codeInput}
+                  placeholder="Verification code"
+                  value={verificationCode}
+                  onChangeText={setVerificationCode}
+                  keyboardType="number-pad"
+                  placeholderTextColor="#999"
+                />
               </View>
-              <TextInput
-                style={styles.passwordInput}
-                placeholder="Password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                placeholderTextColor="#999"
-              />
-            </View>
+            )}
           </View>
 
           {/* Button section */}
           <View style={styles.buttonSection}>
-            <TouchableOpacity
-              style={[styles.loginButton, (!email || !password) && styles.loginButtonDisabled]}
-              onPress={handleLogin}
-              disabled={!email || !password || isLoading}
-            >
-              <Text style={styles.loginButtonText}>
-                {isLoading ? 'Logging in...' : 'Login'}
-              </Text>
-            </TouchableOpacity>
+            {!isCodeSent ? (
+              <>
+                <TouchableOpacity
+                  style={[styles.loginButton, !phoneNumber && styles.loginButtonDisabled]}
+                  onPress={sendVerificationCode}
+                  disabled={!phoneNumber || isLoading}
+                >
+                  <Text style={styles.loginButtonText}>
+                    {isLoading ? 'Sending...' : 'Send Verification Code'}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.loginButton, !verificationCode && styles.loginButtonDisabled]}
+                  onPress={handleLogin}
+                  disabled={!verificationCode || isLoading}
+                >
+                  <Text style={styles.loginButtonText}>
+                    {isLoading ? 'Verifying...' : 'Login'}
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={styles.resendButton}
+                  onPress={() => {
+                    setIsCodeSent(false);
+                    setVerificationCode('');
+                    setVerificationId('');
+                  }}
+                >
+                  <Text style={styles.resendButtonText}>Change Phone Number</Text>
+                </TouchableOpacity>
+              </>
+            )}
 
             <TouchableOpacity style={styles.signupButton} onPress={onSwitchToSignup}>
               <Text style={styles.signupButtonText}>Sign up</Text>
@@ -148,24 +213,24 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     backgroundColor: '#ffffff',
   },
-  emailIcon: {
+  phoneIcon: {
     marginRight: 12,
   },
-  emailIconText: {
+  phoneIconText: {
     fontSize: 18,
   },
-  emailInput: {
+  phoneInput: {
     flex: 1,
     fontSize: 16,
     color: '#333',
   },
-  passwordIcon: {
+  codeIcon: {
     marginRight: 12,
   },
-  passwordIconText: {
+  codeIconText: {
     fontSize: 18,
   },
-  passwordInput: {
+  codeInput: {
     flex: 1,
     fontSize: 16,
     color: '#333',
@@ -197,6 +262,20 @@ const styles = StyleSheet.create({
   },
   signupButtonText: {
     color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  resendButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#2D6A5D',
+    borderRadius: 25,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  resendButtonText: {
+    color: '#2D6A5D',
     fontSize: 16,
     fontWeight: '600',
   },
