@@ -1,4 +1,5 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -104,9 +105,10 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.actionRow}>
-          <TouchableOpacity style={[styles.primaryAction, styles.actionButton]}>
+          <TouchableOpacity style={[styles.primaryAction, styles.actionButton]} onPress={()=>{router.push("/land-management")}}>
             <Ionicons name="map-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.primaryActionText}>Map View</Text>
+            <Text style={styles.primaryActionText}>Land Panel</Text>
+          
           </TouchableOpacity>
           <TouchableOpacity style={[styles.secondaryAction, styles.actionButton]}>
             <Ionicons name="cloud-outline" size={18} color="#3F9142" />

@@ -169,7 +169,7 @@ export default function AccountScreen() {
           />
           <View style={styles.profileInfo}>
             <Text style={styles.name}>{userData?.name || 'Guest User'}</Text>
-            <Text style={styles.location}>📍 {userData?.district || 'Location not set'}</Text>
+            <Text style={styles.location}> {userData?.district || 'Location not set'}</Text>
           </View>
         </View>
 

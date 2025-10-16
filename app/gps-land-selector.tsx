@@ -28,12 +28,12 @@ export default function GPSLandSelectorScreen() {
   const [landArea, setLandArea] = useState<number>(0);
   const [location, setLocation] = useState<{country: string; city: string} | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
   const [landName, setLandName] = useState('');
   const [cropType, setCropType] = useState('');
   const [saving, setSaving] = useState(false);
   const [mapCenter, setMapCenter] = useState<{lat: number; lng: number}>({ lat: 31.5204, lng: 74.3587 });
   const [webViewRef, setWebViewRef] = useState<any>(null);
-  const [isMarkingEnabled, setIsMarkingEnabled] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
 
   useEffect(() => {
@@ -67,15 +67,12 @@ export default function GPSLandSelectorScreen() {
         return;
       }
 
-      // Use BestForNavigation for maximum accuracy (typically 3-5m)
-      // This may take a few seconds longer but provides better results
       const currentLocation = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.BestForNavigation,
       });
 
       const accuracy = currentLocation.coords.accuracy || 0;
       
-      // Show accuracy warning if GPS accuracy is poor (> 20 meters)
       if (accuracy > 20) {
         Alert.alert(
           'Low GPS Accuracy',
@@ -110,7 +107,6 @@ export default function GPSLandSelectorScreen() {
       longitude: currentLocation.coords.longitude,
     };
 
-    // Send message to WebView to add the point
     if (webViewRef) {
       webViewRef.postMessage(JSON.stringify({
         command: 'add_gps_point',
@@ -124,7 +120,6 @@ export default function GPSLandSelectorScreen() {
 
     setCoordinates(prev => [...prev, newPoint]);
     
-    // Show success feedback
     const pointNumber = coordinates.length + 1;
     Alert.alert(
       '✓ Point Marked',
@@ -154,88 +149,103 @@ export default function GPSLandSelectorScreen() {
         html, body, #map { height: 100%; width: 100%; }
         .mapboxgl-canvas { outline: none; }
         
-        .control-panel {
+        .info-panel {
           position: absolute;
           top: 10px;
           left: 10px;
-          background: white;
-          padding: 15px;
-          border-radius: 8px;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(10px);
+          padding: 12px 14px;
+          border-radius: 10px;
+          box-shadow: 0 2px 12px rgba(0,0,0,0.15);
           z-index: 1000;
-          max-width: 250px;
-        }
-        .control-panel h3 {
-          margin: 0 0 10px 0;
-          font-size: 16px;
-          color: #3F9142;
-          font-weight: 700;
-        }
-        .control-panel p {
-          margin: 5px 0;
-          font-size: 14px;
-          color: #666;
-        }
-        
-        .instructions {
-          position: absolute;
-          bottom: 80px;
-          left: 20px;
-          right: 20px;
-          background: rgba(63, 145, 66, 0.95);
-          color: white;
-          padding: 15px;
-          border-radius: 8px;
-          text-align: center;
-          font-weight: 600;
-          font-size: 14px;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        }
-        
-        .button-group {
-          position: absolute;
-          bottom: 20px;
-          right: 20px;
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-          z-index: 1000;
-        }
-        
-        .action-btn {
-          background: #3F9142;
-          color: white;
-          border: none;
-          padding: 12px 20px;
-          border-radius: 8px;
-          font-weight: 600;
-          cursor: pointer;
-          font-size: 14px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-          transition: all 0.2s;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
           min-width: 140px;
         }
         
-        .action-btn:active {
+        .info-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 6px;
+          font-size: 13px;
+        }
+        
+        .info-row:last-child {
+          margin-bottom: 0;
+        }
+        
+        .info-icon {
+          font-size: 16px;
+        }
+        
+        .info-label {
+          color: #666;
+          font-weight: 500;
+        }
+        
+        .info-value {
+          color: #1B1B1B;
+          font-weight: 700;
+        }
+        
+        .accuracy-badge {
+          display: inline-block;
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-size: 11px;
+          font-weight: 700;
+        }
+        
+        .accuracy-good { background: #D4EDD6; color: #2E7D32; }
+        .accuracy-medium { background: #FFE0B2; color: #E65100; }
+        .accuracy-poor { background: #FFCDD2; color: #C62828; }
+        
+        .action-buttons {
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          display: flex;
+          gap: 8px;
+          z-index: 1000;
+        }
+        
+        .icon-btn {
+          width: 44px;
+          height: 44px;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(10px);
+          border: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+          transition: all 0.2s;
+        }
+        
+        .icon-btn:active {
           transform: scale(0.95);
         }
         
-        .action-btn.undo-btn {
-          background: #FF9800;
-        }
-        
-        .action-btn.clear-btn {
-          background: #F44336;
-        }
-        
-        .action-btn:disabled {
-          background: #ccc;
+        .icon-btn:disabled {
+          opacity: 0.4;
           cursor: not-allowed;
-          opacity: 0.6;
+        }
+        
+        .icon-btn.undo { color: #FF9800; }
+        .icon-btn.clear { color: #F44336; }
+        .icon-btn.finish { 
+          background: #3F9142;
+          color: white;
+          width: auto;
+          padding: 0 16px;
+          gap: 6px;
+        }
+        
+        .finish-text {
+          font-weight: 600;
+          font-size: 14px;
         }
         
         .marker {
@@ -273,43 +283,45 @@ export default function GPSLandSelectorScreen() {
           white-space: nowrap;
         }
         
-        .accuracy-circle {
-          border-radius: 50%;
-          border: 2px solid rgba(63, 145, 66, 0.5);
-          background: rgba(63, 145, 66, 0.15);
-          pointer-events: none;
-        }
-        
         @keyframes pulse {
           0%, 100% { box-shadow: 0 0 0 0 rgba(255, 87, 34, 0.7); }
           50% { box-shadow: 0 0 0 8px rgba(255, 87, 34, 0); }
+        }
+        
+        .mapboxgl-ctrl-bottom-left,
+        .mapboxgl-ctrl-bottom-right {
+          display: none;
         }
       </style>
     </head>
     <body>
       <div id="map"></div>
       
-      <div class="control-panel">
-        <h3>GPS Land Mapping</h3>
-        <p id="area-display">Area: 0 acres</p>
-        <p id="points-display">Points: 0</p>
-        <p id="accuracy-display" style="display: none;">Accuracy: -</p>
-        <p id="location-display">Location: Unknown</p>
+      <div class="info-panel">
+        <div class="info-row">
+          <span class="info-icon"></span>
+          <span class="info-value" id="points-display">0 pts</span>
+        </div>
+        <div class="info-row">
+          <span class="info-icon"></span>
+          <span class="info-value" id="area-display">0 acres</span>
+        </div>
+        <div class="info-row" id="accuracy-row" style="display: none;">
+          <span class="info-icon">🎯</span>
+          <span id="accuracy-display" class="accuracy-badge">-</span>
+        </div>
       </div>
       
-      <div class="instructions" id="instructions">
-        📍 Walk to a corner of your land, then tap "Mark Location" below
-      </div>
-      
-      <div class="button-group" id="button-group">
-        <button class="action-btn undo-btn" id="undo-btn" onclick="undoLastPoint()" style="display: none;">
-          ↶ Undo Last
+      <div class="action-buttons">
+        <button class="icon-btn undo" id="undo-btn" onclick="undoLastPoint()" style="display: none;" title="Undo">
+          ↶
         </button>
-        <button class="action-btn clear-btn" id="clear-btn" onclick="clearAll()" style="display: none;">
-          ✕ Clear All
+        <button class="icon-btn clear" id="clear-btn" onclick="clearAll()" style="display: none;" title="Clear">
+          ✕
         </button>
-        <button class="action-btn" id="finish-btn" onclick="finishDrawing()" style="display: none;">
-          ✓ Finish
+        <button class="icon-btn finish" id="finish-btn" onclick="finishDrawing()" style="display: none;">
+          <span>✓</span>
+          <span class="finish-text">Finish</span>
         </button>
       </div>
 
@@ -329,7 +341,6 @@ export default function GPSLandSelectorScreen() {
         map.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
         map.on('load', () => {
-          // Add sources for polygon
           map.addSource('polygon', {
             type: 'geojson',
             data: {
@@ -341,7 +352,6 @@ export default function GPSLandSelectorScreen() {
             }
           });
 
-          // Add polygon fill layer
           map.addLayer({
             id: 'polygon-fill',
             type: 'fill',
@@ -352,7 +362,6 @@ export default function GPSLandSelectorScreen() {
             }
           });
 
-          // Add polygon outline layer
           map.addLayer({
             id: 'polygon-outline',
             type: 'line',
@@ -367,36 +376,42 @@ export default function GPSLandSelectorScreen() {
         function addGPSPoint(lng, lat, accuracy) {
           points.push([lng, lat]);
           
-          // Create marker element
           const el = document.createElement('div');
           el.className = points.length === 1 ? 'marker first' : 'marker';
           el.setAttribute('data-index', points.length.toString());
           
-          // Add marker to map
           const marker = new mapboxgl.Marker(el)
             .setLngLat([lng, lat])
             .addTo(map);
           
           markers.push(marker);
           
-          // Center map on new point with smooth animation
           map.flyTo({
             center: [lng, lat],
             zoom: Math.max(map.getZoom(), 18),
             duration: 1000
           });
           
-          // Get location info for first point
           if (points.length === 1) {
             getLocationInfo(lat, lng);
           }
           
-          // Update accuracy display
           if (accuracy !== undefined) {
+            const accuracyRow = document.getElementById('accuracy-row');
             const accuracyDisplay = document.getElementById('accuracy-display');
-            accuracyDisplay.style.display = 'block';
-            const accuracyColor = accuracy < 10 ? '#3F9142' : accuracy < 20 ? '#FF9800' : '#F44336';
-            accuracyDisplay.innerHTML = \`Accuracy: <span style="color: \${accuracyColor}; font-weight: bold;">\${accuracy.toFixed(1)}m</span>\`;
+            accuracyRow.style.display = 'flex';
+            
+            let accuracyClass = 'accuracy-good';
+            let accuracyText = accuracy.toFixed(1) + 'm';
+            
+            if (accuracy >= 20) {
+              accuracyClass = 'accuracy-poor';
+            } else if (accuracy >= 10) {
+              accuracyClass = 'accuracy-medium';
+            }
+            
+            accuracyDisplay.className = 'accuracy-badge ' + accuracyClass;
+            accuracyDisplay.textContent = accuracyText;
           }
           
           updatePolygon();
@@ -416,7 +431,6 @@ export default function GPSLandSelectorScreen() {
             
             calculateArea();
           } else {
-            // Clear polygon if less than 3 points
             map.getSource('polygon').setData({
               type: 'Feature',
               geometry: {
@@ -424,7 +438,7 @@ export default function GPSLandSelectorScreen() {
                 coordinates: [[]]
               }
             });
-            document.getElementById('area-display').textContent = 'Area: 0 acres';
+            document.getElementById('area-display').textContent = '0 acres';
           }
         }
 
@@ -438,14 +452,13 @@ export default function GPSLandSelectorScreen() {
             const areaInAcres = area * 0.000247105;
             
             const areaText = area < 4047 ? 
-              \`\${Math.round(area)} sq m\` : 
+              \`\${Math.round(area)} m²\` : 
               areaInAcres < 100 ?
-              \`\${areaInAcres.toFixed(2)} acres\` :
-              \`\${areaInAcres.toFixed(1)} acres\`;
+              \`\${areaInAcres.toFixed(2)} ac\` :
+              \`\${areaInAcres.toFixed(1)} ac\`;
             
-            document.getElementById('area-display').textContent = \`Area: \${areaText}\`;
+            document.getElementById('area-display').textContent = areaText;
             
-            // Send data to React Native
             window.ReactNativeWebView.postMessage(JSON.stringify({
               type: 'polygon_updated',
               area: areaInAcres,
@@ -458,37 +471,24 @@ export default function GPSLandSelectorScreen() {
 
         function updateUI() {
           const pointCount = points.length;
-          document.getElementById('points-display').textContent = \`Points: \${pointCount}\`;
+          document.getElementById('points-display').textContent = pointCount + ' pt' + (pointCount !== 1 ? 's' : '');
           
           const undoBtn = document.getElementById('undo-btn');
           const clearBtn = document.getElementById('clear-btn');
           const finishBtn = document.getElementById('finish-btn');
           
           if (pointCount === 0) {
-            document.getElementById('instructions').textContent = 
-              '📍 Walk to a corner of your land, then tap "Mark Location" below';
             undoBtn.style.display = 'none';
             clearBtn.style.display = 'none';
             finishBtn.style.display = 'none';
-          } else if (pointCount === 1) {
-            document.getElementById('instructions').textContent = 
-              '✅ Point 1 marked! Walk to the next corner and mark it';
-            undoBtn.style.display = 'block';
-            clearBtn.style.display = 'block';
+          } else if (pointCount < 3) {
+            undoBtn.style.display = 'flex';
+            clearBtn.style.display = 'flex';
             finishBtn.style.display = 'none';
-          } else if (pointCount === 2) {
-            document.getElementById('instructions').textContent = 
-              '🎯 2 points marked. Add at least one more to complete the boundary';
-            undoBtn.style.display = 'block';
-            clearBtn.style.display = 'block';
-            finishBtn.style.display = 'block';
-            finishBtn.disabled = true;
           } else {
-            document.getElementById('instructions').textContent = 
-              '🎉 Boundary complete! Tap "Finish" or add more corners for precision';
-            undoBtn.style.display = 'block';
-            clearBtn.style.display = 'block';
-            finishBtn.style.display = 'block';
+            undoBtn.style.display = 'flex';
+            clearBtn.style.display = 'flex';
+            finishBtn.style.display = 'flex';
             finishBtn.disabled = false;
           }
         }
@@ -521,8 +521,8 @@ export default function GPSLandSelectorScreen() {
             }
           });
           
-          document.getElementById('area-display').textContent = 'Area: 0 acres';
-          document.getElementById('location-display').textContent = 'Location: Unknown';
+          document.getElementById('area-display').textContent = '0 acres';
+          document.getElementById('accuracy-row').style.display = 'none';
           
           updateUI();
           
@@ -540,7 +540,6 @@ export default function GPSLandSelectorScreen() {
               let country = 'Unknown';
               let city = 'Unknown';
               
-              // Try to find country and city/place from features
               for (const feature of data.features) {
                 const types = feature.place_type;
                 
@@ -553,24 +552,16 @@ export default function GPSLandSelectorScreen() {
                 }
               }
               
-              // If still unknown, use the first feature's text
               if (city === 'Unknown' && data.features[0]) {
                 city = data.features[0].text || data.features[0].place_name?.split(',')[0] || 'Unknown';
               }
               
               if (country === 'Unknown' && data.features.length > 0) {
-                // Country is usually the last context item
                 const lastFeature = data.features[data.features.length - 1];
                 if (lastFeature.place_type.includes('country')) {
                   country = lastFeature.text;
                 }
               }
-              
-              const locationText = city !== 'Unknown' || country !== 'Unknown' 
-                ? \`\${city}, \${country}\`
-                : 'Location detected';
-              
-              document.getElementById('location-display').textContent = \`Location: \${locationText}\`;
               
               window.ReactNativeWebView.postMessage(JSON.stringify({
                 type: 'location_updated',
@@ -578,9 +569,6 @@ export default function GPSLandSelectorScreen() {
                 city: city
               }));
             } else {
-              // No features returned, but we have coordinates
-              document.getElementById('location-display').textContent = \`Location: \${lat.toFixed(4)}, \${lng.toFixed(4)}\`;
-              
               window.ReactNativeWebView.postMessage(JSON.stringify({
                 type: 'location_updated',
                 country: 'Unknown',
@@ -589,7 +577,6 @@ export default function GPSLandSelectorScreen() {
             }
           } catch (error) {
             console.error('Error getting location info:', error);
-            document.getElementById('location-display').textContent = 'Location: Loading...';
           }
         }
 
@@ -605,7 +592,6 @@ export default function GPSLandSelectorScreen() {
           }));
         }
 
-        // Listen for messages from React Native
         window.addEventListener('message', (event) => {
           const data = JSON.parse(event.data);
           if (data.command === 'clear') {
@@ -691,7 +677,7 @@ export default function GPSLandSelectorScreen() {
         city: location?.city || 'Unknown',
         cropType: cropType.trim() || null,
         createdAt: new Date().toISOString(),
-        mappingMethod: 'GPS', // Mark this as GPS-mapped land
+        mappingMethod: 'GPS',
       };
 
       await addDoc(collection(firestore, 'lands'), landData);
@@ -734,7 +720,12 @@ export default function GPSLandSelectorScreen() {
           <Ionicons name="arrow-back" size={24} color="#1B1B1B" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>GPS Land Mapping</Text>
-        <View style={styles.placeholder} />
+        <TouchableOpacity 
+          onPress={() => setShowHelpModal(true)} 
+          style={styles.helpButton}
+        >
+          <Ionicons name="help-circle-outline" size={24} color="#3F9142" />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.mapContainer}>
@@ -754,7 +745,6 @@ export default function GPSLandSelectorScreen() {
           )}
         />
         
-        {/* GPS Mark Location Button */}
         <View style={styles.gpsButtonContainer}>
           <TouchableOpacity 
             style={[styles.gpsButton, gettingLocation && styles.gpsButtonDisabled]}
@@ -764,15 +754,102 @@ export default function GPSLandSelectorScreen() {
             {gettingLocation ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Ionicons name="location" size={24} color="#FFFFFF" />
+              <Ionicons name="locate" size={24} color="#FFFFFF" />
             )}
             <Text style={styles.gpsButtonText}>
-              {gettingLocation ? 'Getting Location...' : 'Mark Location'}
+              {gettingLocation ? 'Getting GPS...' : 'Mark Location'}
             </Text>
           </TouchableOpacity>
         </View>
       </View>
 
+      {/* Help Modal */}
+      <Modal
+        visible={showHelpModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowHelpModal(false)}
+      >
+        <TouchableOpacity 
+          style={styles.helpModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowHelpModal(false)}
+        >
+          <View style={styles.helpModalContent}>
+            <View style={styles.helpHeader}>
+              <Ionicons name="information-circle" size={28} color="#3F9142" />
+              <Text style={styles.helpTitle}>How to Map Your Land</Text>
+            </View>
+            
+            <View style={styles.helpSteps}>
+              <View style={styles.helpStep}>
+                <View style={styles.stepNumber}>
+                  <Text style={styles.stepNumberText}>1</Text>
+                </View>
+                <View style={styles.stepContent}>
+                  <Text style={styles.stepTitle}>Walk to First Corner</Text>
+                  <Text style={styles.stepDescription}>
+                    Stand at any corner of your land boundary
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.helpStep}>
+                <View style={styles.stepNumber}>
+                  <Text style={styles.stepNumberText}>2</Text>
+                </View>
+                <View style={styles.stepContent}>
+                  <Text style={styles.stepTitle}>Tap "Mark Location"</Text>
+                  <Text style={styles.stepDescription}>
+                    Wait for GPS accuracy, then tap the green button
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.helpStep}>
+                <View style={styles.stepNumber}>
+                  <Text style={styles.stepNumberText}>3</Text>
+                </View>
+                <View style={styles.stepContent}>
+                  <Text style={styles.stepTitle}>Continue Walking</Text>
+                  <Text style={styles.stepDescription}>
+                    Walk to each corner and mark (minimum 3 points)
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.helpStep}>
+                <View style={styles.stepNumber}>
+                  <Text style={styles.stepNumberText}>4</Text>
+                </View>
+                <View style={styles.stepContent}>
+                  <Text style={styles.stepTitle}>Finish & Save</Text>
+                  <Text style={styles.stepDescription}>
+                    Tap "Finish" when complete, then save your land
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.helpTips}>
+              <Text style={styles.helpTipsTitle}>💡 Tips for Best Results</Text>
+              <Text style={styles.helpTip}>• Ensure clear view of sky for better GPS accuracy</Text>
+              <Text style={styles.helpTip}>• Walk along the actual boundary of your land</Text>
+              <Text style={styles.helpTip}>• Mark all major corners and turns</Text>
+              <Text style={styles.helpTip}>• Aim for GPS accuracy under 10 meters</Text>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.helpCloseButton}
+              onPress={() => setShowHelpModal(false)}
+            >
+              <Text style={styles.helpCloseButtonText}>Got It!</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Save Modal */}
       <Modal
         visible={showSaveModal}
         animationType="slide"
@@ -883,13 +960,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  helpButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F0F8F1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#1B1B1B',
-  },
-  placeholder: {
-    width: 40,
   },
   mapContainer: {
     flex: 1,
@@ -926,20 +1008,117 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
+    paddingVertical: 18,
     paddingHorizontal: 24,
-    borderRadius: 12,
-    gap: 8,
+    borderRadius: 16,
+    gap: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
   gpsButtonDisabled: {
     opacity: 0.7,
   },
   gpsButtonText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  helpModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  helpModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  helpHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 20,
+  },
+  helpTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1B1B1B',
+    flex: 1,
+  },
+  helpSteps: {
+    marginBottom: 20,
+  },
+  helpStep: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    gap: 12,
+  },
+  stepNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#3F9142',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepNumberText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  stepContent: {
+    flex: 1,
+  },
+  stepTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1B1B1B',
+    marginBottom: 4,
+  },
+  stepDescription: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+  },
+  helpTips: {
+    backgroundColor: '#FFF9E6',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FFE8A3',
+    marginBottom: 20,
+  },
+  helpTipsTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1B1B1B',
+    marginBottom: 10,
+  },
+  helpTip: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 6,
+    lineHeight: 18,
+  },
+  helpCloseButton: {
+    backgroundColor: '#3F9142',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  helpCloseButtonText: {
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
