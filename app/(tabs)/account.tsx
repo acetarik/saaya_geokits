@@ -1,9 +1,9 @@
 import { auth, firestore } from '@/config/firebase/firebase';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -45,26 +45,63 @@ interface UserData {
 }
 
 export default function AccountScreen() {
+  const params = useLocalSearchParams();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const isInitialLoad = useRef(true);
+
+  const fetchUserData = async (isRefresh = false) => {
+    if (!auth.currentUser) {
+      setLoading(false);
+      return;
+    }
+
+    if (isRefresh) {
+      setRefreshing(true);
+    }
+
+    try {
+      const userDoc = await getDoc(doc(firestore, 'users', auth.currentUser.uid));
+      if (userDoc.exists()) {
+        const newData = userDoc.data() as UserData;
+        setUserData(newData);
+        if (isRefresh) {
+          console.log('User data refreshed:', newData.name, newData.district);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        try {
-          const userDoc = await getDoc(doc(firestore, 'users', user.uid));
-          if (userDoc.exists()) {
-            setUserData(userDoc.data() as UserData);
-          }
-        } catch (error) {
-          console.error('Error fetching user data:', error);
-        }
+        await fetchUserData(false);
+      } else {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
+
+  // Listen for route params that indicate settings were updated
+  useFocusEffect(
+    useCallback(() => {
+      // Check if we're returning from settings with an update flag
+      if (params?.settingsUpdated === 'true') {
+        console.log('Settings were updated, refreshing user data...');
+        fetchUserData(true);
+        // Clear the param to prevent re-fetching on next focus
+        router.setParams({ settingsUpdated: undefined });
+      }
+    }, [params?.settingsUpdated])
+  );
 
   const handleLogout = async () => {
     try {
@@ -95,6 +132,8 @@ export default function AccountScreen() {
       );
     } else if (id === 'land-management') {
       router.push('/land-management');
+    } else if (id === 'settings') {
+      router.push('/account-settings');
     }
     // Handle other settings here
   };
@@ -112,8 +151,17 @@ export default function AccountScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        {/* Show a subtle refresh indicator */}
+        {refreshing && (
+          <View style={styles.refreshIndicator}>
+            <ActivityIndicator size="small" color="#3F9142" />
+            <Text style={styles.refreshText}>Updating...</Text>
+          </View>
+        )}
+        
         <View style={styles.profileCard}>
           <Image 
+            key={userData?.profileImageUrl || 'default'}
             source={{ 
               uri: userData?.profileImageUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face' 
             }}
@@ -323,5 +371,22 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     color: '#666',
+  },
+  refreshIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E4F3E6',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    alignSelf: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  refreshText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#3F9142',
   },
 });

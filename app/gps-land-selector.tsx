@@ -1,7 +1,7 @@
 import { auth, firestore } from '@/config/firebase/firebase';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { addDoc, collection } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
@@ -23,10 +23,7 @@ interface Coordinates {
   longitude: number;
 }
 
-export default function LandSelectorScreen() {
-  const params = useLocalSearchParams();
-  const isViewMode = params.viewMode === 'true';
-  
+export default function GPSLandSelectorScreen() {
   const [coordinates, setCoordinates] = useState<Coordinates[]>([]);
   const [landArea, setLandArea] = useState<number>(0);
   const [location, setLocation] = useState<{country: string; city: string} | null>(null);
@@ -36,56 +33,12 @@ export default function LandSelectorScreen() {
   const [saving, setSaving] = useState(false);
   const [mapCenter, setMapCenter] = useState<{lat: number; lng: number}>({ lat: 31.5204, lng: 74.3587 });
   const [webViewRef, setWebViewRef] = useState<any>(null);
+  const [isMarkingEnabled, setIsMarkingEnabled] = useState(false);
+  const [gettingLocation, setGettingLocation] = useState(false);
 
   useEffect(() => {
-    if (isViewMode) {
-      // Load existing land data for view mode
-      loadExistingLandData();
-    } else {
-      requestLocationPermission();
-    }
+    requestLocationPermission();
   }, []);
-
-  const loadExistingLandData = async () => {
-    try {
-      // Parse coordinates from params
-      if (params.coordinates) {
-        const parsedCoordinates = JSON.parse(params.coordinates as string).map((coord: any) => ({
-          latitude: coord.latitude,
-          longitude: coord.longitude,
-        }));
-        setCoordinates(parsedCoordinates);
-        
-        // Set map center to first coordinate
-        if (parsedCoordinates.length > 0) {
-          setMapCenter({
-            lat: parsedCoordinates[0].latitude,
-            lng: parsedCoordinates[0].longitude,
-          });
-        }
-      }
-      
-      // Set other land data
-      if (params.landName) {
-        setLandName(params.landName as string);
-      }
-      if (params.landArea) {
-        setLandArea(parseFloat(params.landArea as string));
-      }
-      if (params.cropType) {
-        setCropType(params.cropType as string);
-      }
-      if (params.country && params.city) {
-        setLocation({
-          country: params.country as string,
-          city: params.city as string,
-        });
-      }
-    } catch (error) {
-      console.error('Error loading existing land data:', error);
-      Alert.alert('Error', 'Failed to load land data');
-    }
-  };
 
   const requestLocationPermission = async () => {
     try {
@@ -102,23 +55,95 @@ export default function LandSelectorScreen() {
     }
   };
 
+  const markCurrentLocation = async () => {
+    if (gettingLocation) return;
+    
+    setGettingLocation(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Location permission is required to mark your current position.');
+        setGettingLocation(false);
+        return;
+      }
+
+      // Use BestForNavigation for maximum accuracy (typically 3-5m)
+      // This may take a few seconds longer but provides better results
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.BestForNavigation,
+      });
+
+      const accuracy = currentLocation.coords.accuracy || 0;
+      
+      // Show accuracy warning if GPS accuracy is poor (> 20 meters)
+      if (accuracy > 20) {
+        Alert.alert(
+          'Low GPS Accuracy',
+          `Current GPS accuracy is ${accuracy.toFixed(0)} meters. For better results, ensure you have a clear view of the sky. Continue anyway?`,
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+              onPress: () => setGettingLocation(false),
+            },
+            {
+              text: 'Mark Anyway',
+              onPress: () => addGPSPoint(currentLocation, accuracy),
+            },
+          ]
+        );
+        return;
+      }
+
+      addGPSPoint(currentLocation, accuracy);
+
+    } catch (error) {
+      console.error('Error getting current location:', error);
+      Alert.alert('Location Error', 'Failed to get your current location. Please ensure GPS is enabled and try again.');
+      setGettingLocation(false);
+    }
+  };
+
+  const addGPSPoint = (currentLocation: any, accuracy: number) => {
+    const newPoint = {
+      latitude: currentLocation.coords.latitude,
+      longitude: currentLocation.coords.longitude,
+    };
+
+    // Send message to WebView to add the point
+    if (webViewRef) {
+      webViewRef.postMessage(JSON.stringify({
+        command: 'add_gps_point',
+        point: {
+          lng: newPoint.longitude,
+          lat: newPoint.latitude,
+        },
+        accuracy: accuracy,
+      }));
+    }
+
+    setCoordinates(prev => [...prev, newPoint]);
+    
+    // Show success feedback
+    const pointNumber = coordinates.length + 1;
+    Alert.alert(
+      '✓ Point Marked',
+      `GPS Point ${pointNumber} added with ${accuracy.toFixed(1)}m accuracy.\n\n${pointNumber < 3 ? `Add ${3 - pointNumber} more point${3 - pointNumber > 1 ? 's' : ''} to complete the boundary.` : 'You can now finish or add more points.'}`,
+      [{ text: 'OK' }]
+    );
+    
+    setGettingLocation(false);
+  };
+
   const generateMapHTML = () => {
     const mapboxToken = process.env.EXPO_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1IjoidXphaXJrYXNoaWYyNyIsImEiOiJjbWJyZG96bHowODZpMnFxdHRhNWo0Mmt2In0.celmSMfpC3VqWJWRSHFnoA';
-    
-    // Convert coordinates to GeoJSON format for view mode
-    let initialCoordinates = '[]';
-    if (isViewMode && coordinates.length > 0) {
-      initialCoordinates = JSON.stringify(
-        coordinates.map(coord => [coord.longitude, coord.latitude])
-      );
-    }
     
     return `
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Land Selector</title>
+      <title>GPS Land Selector</title>
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
       <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
@@ -154,7 +179,7 @@ export default function LandSelectorScreen() {
         
         .instructions {
           position: absolute;
-          bottom: 20px;
+          bottom: 80px;
           left: 20px;
           right: 20px;
           background: rgba(63, 145, 66, 0.95);
@@ -169,7 +194,7 @@ export default function LandSelectorScreen() {
         
         .button-group {
           position: absolute;
-          bottom: 80px;
+          bottom: 20px;
           right: 20px;
           display: flex;
           flex-direction: column;
@@ -222,10 +247,7 @@ export default function LandSelectorScreen() {
           box-shadow: 0 2px 6px rgba(0,0,0,0.3);
           cursor: pointer;
           transition: all 0.2s;
-        }
-        
-        .marker:hover {
-          transform: scale(1.2);
+          position: relative;
         }
         
         .marker.first {
@@ -234,6 +256,28 @@ export default function LandSelectorScreen() {
           height: 20px;
           border-width: 4px;
           animation: pulse 2s infinite;
+        }
+        
+        .marker::after {
+          content: attr(data-index);
+          position: absolute;
+          top: -25px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: rgba(0, 0, 0, 0.8);
+          color: white;
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-size: 10px;
+          font-weight: bold;
+          white-space: nowrap;
+        }
+        
+        .accuracy-circle {
+          border-radius: 50%;
+          border: 2px solid rgba(63, 145, 66, 0.5);
+          background: rgba(63, 145, 66, 0.15);
+          pointer-events: none;
         }
         
         @keyframes pulse {
@@ -246,24 +290,25 @@ export default function LandSelectorScreen() {
       <div id="map"></div>
       
       <div class="control-panel">
-        <h3>Land Information</h3>
+        <h3>GPS Land Mapping</h3>
         <p id="area-display">Area: 0 acres</p>
         <p id="points-display">Points: 0</p>
+        <p id="accuracy-display" style="display: none;">Accuracy: -</p>
         <p id="location-display">Location: Unknown</p>
       </div>
       
       <div class="instructions" id="instructions">
-        Tap on the map to mark corners of your land
+        📍 Walk to a corner of your land, then tap "Mark Location" below
       </div>
       
-      <div class="button-group" id="button-group" style="display: none;">
-        <button class="action-btn undo-btn" id="undo-btn" onclick="undoLastPoint()">
+      <div class="button-group" id="button-group">
+        <button class="action-btn undo-btn" id="undo-btn" onclick="undoLastPoint()" style="display: none;">
           ↶ Undo Last
         </button>
-        <button class="action-btn clear-btn" id="clear-btn" onclick="clearAll()">
+        <button class="action-btn clear-btn" id="clear-btn" onclick="clearAll()" style="display: none;">
           ✕ Clear All
         </button>
-        <button class="action-btn" id="finish-btn" onclick="finishDrawing()">
+        <button class="action-btn" id="finish-btn" onclick="finishDrawing()" style="display: none;">
           ✓ Finish
         </button>
       </div>
@@ -275,19 +320,16 @@ export default function LandSelectorScreen() {
           container: 'map',
           style: 'mapbox://styles/mapbox/satellite-streets-v12',
           center: [${mapCenter.lng}, ${mapCenter.lat}],
-          zoom: 16
+          zoom: 18
         });
 
-        let points = ${initialCoordinates};
+        let points = [];
         let markers = [];
-        let polygonLayer = null;
-        let isDrawing = false;
-        let isViewMode = ${isViewMode ? 'true' : 'false'};
 
         map.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
         map.on('load', () => {
-          // Add sources for polygon and lines
+          // Add sources for polygon
           map.addSource('polygon', {
             type: 'geojson',
             data: {
@@ -295,17 +337,6 @@ export default function LandSelectorScreen() {
               geometry: {
                 type: 'Polygon',
                 coordinates: [[]]
-              }
-            }
-          });
-
-          map.addSource('lines', {
-            type: 'geojson',
-            data: {
-              type: 'Feature',
-              geometry: {
-                type: 'LineString',
-                coordinates: []
               }
             }
           });
@@ -331,58 +362,15 @@ export default function LandSelectorScreen() {
               'line-width': 3
             }
           });
-
-          // Add line layer for active drawing
-          map.addLayer({
-            id: 'line-active',
-            type: 'line',
-            source: 'lines',
-            paint: {
-              'line-color': '#FF9800',
-              'line-width': 2,
-              'line-dasharray': [2, 2]
-            }
-          });
-
-          // If in view mode, load existing coordinates
-          if (isViewMode && points.length > 0) {
-            loadExistingPoints();
-          }
         });
 
-        function loadExistingPoints() {
-          // Clear existing markers and add them for existing coordinates
-          markers.forEach(marker => marker.remove());
-          markers = [];
-
-          points.forEach((coord, index) => {
-            const el = document.createElement('div');
-            el.className = index === 0 ? 'marker first' : 'marker';
-            
-            const marker = new mapboxgl.Marker(el)
-              .setLngLat(coord)
-              .addTo(map);
-            
-            markers.push(marker);
-          });
-
-          // Update the drawing display
-          updateDrawing();
-          updateUI();
-        }
-
-        map.on('click', (e) => {
-          if (!isViewMode) {
-            addPoint(e.lngLat.lng, e.lngLat.lat);
-          }
-        });
-
-        function addPoint(lng, lat) {
+        function addGPSPoint(lng, lat, accuracy) {
           points.push([lng, lat]);
           
           // Create marker element
           const el = document.createElement('div');
           el.className = points.length === 1 ? 'marker first' : 'marker';
+          el.setAttribute('data-index', points.length.toString());
           
           // Add marker to map
           const marker = new mapboxgl.Marker(el)
@@ -391,28 +379,31 @@ export default function LandSelectorScreen() {
           
           markers.push(marker);
           
+          // Center map on new point with smooth animation
+          map.flyTo({
+            center: [lng, lat],
+            zoom: Math.max(map.getZoom(), 18),
+            duration: 1000
+          });
+          
           // Get location info for first point
           if (points.length === 1) {
             getLocationInfo(lat, lng);
           }
           
-          updateDrawing();
+          // Update accuracy display
+          if (accuracy !== undefined) {
+            const accuracyDisplay = document.getElementById('accuracy-display');
+            accuracyDisplay.style.display = 'block';
+            const accuracyColor = accuracy < 10 ? '#3F9142' : accuracy < 20 ? '#FF9800' : '#F44336';
+            accuracyDisplay.innerHTML = \`Accuracy: <span style="color: \${accuracyColor}; font-weight: bold;">\${accuracy.toFixed(1)}m</span>\`;
+          }
+          
+          updatePolygon();
           updateUI();
         }
 
-        function updateDrawing() {
-          if (points.length < 1) return;
-
-          // Update line string
-          map.getSource('lines').setData({
-            type: 'Feature',
-            geometry: {
-              type: 'LineString',
-              coordinates: points
-            }
-          });
-
-          // Update polygon if we have at least 3 points
+        function updatePolygon() {
           if (points.length >= 3) {
             const closedPoints = [...points, points[0]];
             map.getSource('polygon').setData({
@@ -424,6 +415,16 @@ export default function LandSelectorScreen() {
             });
             
             calculateArea();
+          } else {
+            // Clear polygon if less than 3 points
+            map.getSource('polygon').setData({
+              type: 'Feature',
+              geometry: {
+                type: 'Polygon',
+                coordinates: [[]]
+              }
+            });
+            document.getElementById('area-display').textContent = 'Area: 0 acres';
           }
         }
 
@@ -459,29 +460,36 @@ export default function LandSelectorScreen() {
           const pointCount = points.length;
           document.getElementById('points-display').textContent = \`Points: \${pointCount}\`;
           
-          if (isViewMode) {
-            document.getElementById('instructions').textContent = 'Viewing land boundary';
-            document.getElementById('button-group').style.display = 'none';
-            return;
-          }
-
+          const undoBtn = document.getElementById('undo-btn');
+          const clearBtn = document.getElementById('clear-btn');
+          const finishBtn = document.getElementById('finish-btn');
+          
           if (pointCount === 0) {
             document.getElementById('instructions').textContent = 
-              'Tap on the map to mark corners of your land';
-            document.getElementById('button-group').style.display = 'none';
+              '📍 Walk to a corner of your land, then tap "Mark Location" below';
+            undoBtn.style.display = 'none';
+            clearBtn.style.display = 'none';
+            finishBtn.style.display = 'none';
           } else if (pointCount === 1) {
             document.getElementById('instructions').textContent = 
-              'Continue tapping to mark all corners';
-            document.getElementById('button-group').style.display = 'flex';
-            document.getElementById('finish-btn').disabled = true;
+              '✅ Point 1 marked! Walk to the next corner and mark it';
+            undoBtn.style.display = 'block';
+            clearBtn.style.display = 'block';
+            finishBtn.style.display = 'none';
           } else if (pointCount === 2) {
             document.getElementById('instructions').textContent = 
-              'Add at least one more point to complete the boundary';
-            document.getElementById('finish-btn').disabled = true;
+              '🎯 2 points marked. Add at least one more to complete the boundary';
+            undoBtn.style.display = 'block';
+            clearBtn.style.display = 'block';
+            finishBtn.style.display = 'block';
+            finishBtn.disabled = true;
           } else {
             document.getElementById('instructions').textContent = 
-              'Tap "Finish" when done or continue adding points';
-            document.getElementById('finish-btn').disabled = false;
+              '🎉 Boundary complete! Tap "Finish" or add more corners for precision';
+            undoBtn.style.display = 'block';
+            clearBtn.style.display = 'block';
+            finishBtn.style.display = 'block';
+            finishBtn.disabled = false;
           }
         }
 
@@ -495,7 +503,7 @@ export default function LandSelectorScreen() {
           if (points.length === 0) {
             clearAll();
           } else {
-            updateDrawing();
+            updatePolygon();
             updateUI();
           }
         }
@@ -504,14 +512,6 @@ export default function LandSelectorScreen() {
           points = [];
           markers.forEach(marker => marker.remove());
           markers = [];
-          
-          map.getSource('lines').setData({
-            type: 'Feature',
-            geometry: {
-              type: 'LineString',
-              coordinates: []
-            }
-          });
           
           map.getSource('polygon').setData({
             type: 'Feature',
@@ -610,6 +610,8 @@ export default function LandSelectorScreen() {
           const data = JSON.parse(event.data);
           if (data.command === 'clear') {
             clearAll();
+          } else if (data.command === 'add_gps_point') {
+            addGPSPoint(data.point.lng, data.point.lat, data.accuracy);
           }
         });
       </script>
@@ -648,7 +650,7 @@ export default function LandSelectorScreen() {
           if (data.coordinates && data.coordinates.length >= 3) {
             setShowSaveModal(true);
           } else {
-            Alert.alert('Incomplete Polygon', 'Please draw at least 3 points to create a valid land boundary.');
+            Alert.alert('Incomplete Polygon', 'Please add at least 3 points to create a valid land boundary.');
           }
           break;
       }
@@ -669,7 +671,7 @@ export default function LandSelectorScreen() {
     }
 
     if (coordinates.length < 3) {
-      Alert.alert('Invalid Polygon', 'Please draw at least 3 points to create a valid land boundary.');
+      Alert.alert('Invalid Polygon', 'Please add at least 3 points to create a valid land boundary.');
       return;
     }
 
@@ -689,6 +691,7 @@ export default function LandSelectorScreen() {
         city: location?.city || 'Unknown',
         cropType: cropType.trim() || null,
         createdAt: new Date().toISOString(),
+        mappingMethod: 'GPS', // Mark this as GPS-mapped land
       };
 
       await addDoc(collection(firestore, 'lands'), landData);
@@ -730,7 +733,7 @@ export default function LandSelectorScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#1B1B1B" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{isViewMode ? 'View Land' : 'Select Your Land'}</Text>
+        <Text style={styles.headerTitle}>GPS Land Mapping</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -750,6 +753,24 @@ export default function LandSelectorScreen() {
             </View>
           )}
         />
+        
+        {/* GPS Mark Location Button */}
+        <View style={styles.gpsButtonContainer}>
+          <TouchableOpacity 
+            style={[styles.gpsButton, gettingLocation && styles.gpsButtonDisabled]}
+            onPress={markCurrentLocation}
+            disabled={gettingLocation}
+          >
+            {gettingLocation ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Ionicons name="location" size={24} color="#FFFFFF" />
+            )}
+            <Text style={styles.gpsButtonText}>
+              {gettingLocation ? 'Getting Location...' : 'Mark Location'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Modal
@@ -760,7 +781,7 @@ export default function LandSelectorScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Save Your Land</Text>
+            <Text style={styles.modalTitle}>Save Your GPS-Mapped Land</Text>
             
             <ScrollView style={styles.modalForm} showsVerticalScrollIndicator={false}>
               <View style={styles.inputGroup}>
@@ -786,7 +807,11 @@ export default function LandSelectorScreen() {
               </View>
 
               <View style={styles.summaryCard}>
-                <Text style={styles.summaryTitle}>Land Summary</Text>
+                <Text style={styles.summaryTitle}>GPS Land Summary</Text>
+                <View style={styles.summaryRow}>
+                  <Ionicons name="navigate-circle" size={18} color="#3F9142" />
+                  <Text style={styles.summaryText}>Mapping: GPS-based</Text>
+                </View>
                 <View style={styles.summaryRow}>
                   <Ionicons name="resize-outline" size={18} color="#3F9142" />
                   <Text style={styles.summaryText}>Area: {formatArea(landArea)}</Text>
@@ -799,7 +824,7 @@ export default function LandSelectorScreen() {
                 </View>
                 <View style={styles.summaryRow}>
                   <Ionicons name="git-commit-outline" size={18} color="#3F9142" />
-                  <Text style={styles.summaryText}>Points: {coordinates.length}</Text>
+                  <Text style={styles.summaryText}>GPS Points: {coordinates.length}</Text>
                 </View>
               </View>
             </ScrollView>
@@ -868,6 +893,7 @@ const styles = StyleSheet.create({
   },
   mapContainer: {
     flex: 1,
+    position: 'relative',
   },
   webView: {
     flex: 1,
@@ -887,6 +913,36 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     marginTop: 12,
+  },
+  gpsButtonContainer: {
+    position: 'absolute',
+    bottom: 30,
+    left: 20,
+    right: 20,
+    zIndex: 1000,
+  },
+  gpsButton: {
+    backgroundColor: '#3F9142',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  gpsButtonDisabled: {
+    opacity: 0.7,
+  },
+  gpsButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   modalOverlay: {
     flex: 1,

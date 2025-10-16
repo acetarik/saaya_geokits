@@ -1,0 +1,72 @@
+rules_version = '2';
+
+// Firebase Storage Security Rules for Saaya App
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the resource
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // Helper function to validate image files
+    function isImageFile() {
+      return request.resource.contentType.matches('image/.*');
+    }
+    
+    // Helper function to check file size (max 5MB)
+    function isValidSize() {
+      return request.resource.size < 5 * 1024 * 1024;
+    }
+    
+    // Profile Images Rules
+    // Path format: profile-images/profile_{userId}_{timestamp}.jpg
+    match /profile-images/{imageId} {
+      // Anyone authenticated can read profile images
+      allow read: if isAuthenticated();
+      
+      // Users can only upload their own profile images
+      // Filename must start with "profile_{userId}_"
+      allow create: if isAuthenticated()
+                    && imageId.matches('profile_' + request.auth.uid + '_[0-9]+\\.jpg')
+                    && isImageFile()
+                    && isValidSize();
+      
+      // Users can delete their own profile images
+      allow delete: if isAuthenticated()
+                    && imageId.matches('profile_' + request.auth.uid + '_[0-9]+\\.jpg');
+      
+      // Update is not allowed (delete and create new instead)
+      allow update: if false;
+    }
+    
+    // Land Images Rules (for future use - photos of land boundaries)
+    // Path format: land-images/{userId}/{landId}/{imageId}.jpg
+    match /land-images/{userId}/{landId}/{imageId} {
+      // Users can read their own land images
+      allow read: if isAuthenticated() && isOwner(userId);
+      
+      // Users can upload images for their own lands
+      allow create: if isAuthenticated()
+                    && isOwner(userId)
+                    && isImageFile()
+                    && isValidSize();
+      
+      // Users can delete their own land images
+      allow delete: if isAuthenticated() && isOwner(userId);
+      
+      // Update is not allowed
+      allow update: if false;
+    }
+    
+    // Deny all other paths by default
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

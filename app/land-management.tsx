@@ -68,7 +68,27 @@ export default function LandManagementScreen() {
   };
 
   const handleAddLand = () => {
-    router.push('/land-selector');
+    Alert.alert(
+      'Choose Mapping Method',
+      'How would you like to map your land?',
+      [
+        {
+          text: 'GPS Walking',
+          onPress: () => router.push('/gps-land-selector'),
+          style: 'default',
+        },
+        {
+          text: 'Manual Selection',
+          onPress: () => router.push('/land-selector'),
+          style: 'default',
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
   const handleViewLand = (land: LandData) => {
@@ -147,12 +167,36 @@ export default function LandManagementScreen() {
       </View>
 
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        <View style={styles.addLandCard}>
-          <TouchableOpacity style={styles.addButton} onPress={handleAddLand}>
-            <Ionicons name="add-circle" size={32} color="#3F9142" />
-            <Text style={styles.addButtonText}>Add New Land</Text>
-            <Text style={styles.addButtonSubtext}>Draw your land boundaries on the map</Text>
-          </TouchableOpacity>
+        <View style={styles.addLandSection}>
+          <Text style={styles.addLandTitle}>Add New Land</Text>
+          <Text style={styles.addLandSubtitle}>Choose how you want to map your land</Text>
+          
+          <View style={styles.methodCards}>
+            <TouchableOpacity 
+              style={styles.methodCard} 
+              onPress={() => router.push('/gps-land-selector')}
+            >
+              <View style={styles.methodIconContainer}>
+                <Ionicons name="navigate-circle" size={32} color="#3F9142" />
+              </View>
+              <Text style={styles.methodCardTitle}>GPS Walking</Text>
+              <Text style={styles.methodCardDesc}>Walk the perimeter and mark GPS points</Text>
+              <View style={styles.methodBadge}>
+                <Text style={styles.methodBadgeText}>Recommended</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.methodCard} 
+              onPress={() => router.push('/land-selector')}
+            >
+              <View style={styles.methodIconContainer}>
+                <Ionicons name="hand-left" size={32} color="#3F9142" />
+              </View>
+              <Text style={styles.methodCardTitle}>Manual Drawing</Text>
+              <Text style={styles.methodCardDesc}>Tap points on the map to draw boundaries</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {lands.length === 0 ? (
@@ -160,7 +204,7 @@ export default function LandManagementScreen() {
             <Ionicons name="map-outline" size={64} color="#C2C2C2" />
             <Text style={styles.emptyStateTitle}>No Lands Added Yet</Text>
             <Text style={styles.emptyStateText}>
-              Start by adding your first land using the map selector above
+              Start by adding your first land using GPS walking or manual drawing
             </Text>
           </View>
         ) : (
@@ -364,5 +408,75 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     color: '#666',
+  },
+  addLandSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  addLandTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1B1B1B',
+    marginBottom: 4,
+  },
+  addLandSubtitle: {
+    fontSize: 14,
+    color: '#6F6F6F',
+    marginBottom: 20,
+  },
+  methodCards: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  methodCard: {
+    flex: 1,
+    backgroundColor: '#F7F5F2',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#E5E5E5',
+  },
+  methodIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#E4F3E6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  methodCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1B1B1B',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  methodCardDesc: {
+    fontSize: 12,
+    color: '#6F6F6F',
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+  methodBadge: {
+    backgroundColor: '#3F9142',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  methodBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
   },
 });
