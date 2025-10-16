@@ -215,22 +215,17 @@ export default function LandManagementScreen() {
                 <View style={styles.landInfo}>
                   <View style={styles.landHeader}>
                     <Text style={styles.landName}>{land.name}</Text>
-                    <TouchableOpacity
-                      onPress={() => handleDeleteLand(land.id)}
-                      style={styles.deleteButton}
-                    >
-                      <Ionicons name="trash-outline" size={18} color="#FF4444" />
-                    </TouchableOpacity>
+                    
                   </View>
                   <Text style={styles.landLocation}>
-                    📍 {land.city}, {land.country}
+                     {land.city}, {land.country}
                   </Text>
                   <Text style={styles.landArea}>
-                    🗺️ {formatArea(land.area)}
+                     {formatArea(land.area)}
                   </Text>
                   {land.cropType && (
                     <Text style={styles.cropType}>
-                      🌾 {land.cropType}
+                      {land.cropType}
                     </Text>
                   )}
                   <Text style={styles.createdDate}>
@@ -244,6 +239,12 @@ export default function LandManagementScreen() {
                   <Ionicons name="eye-outline" size={18} color="#3F9142" />
                   <Text style={styles.viewButtonText}>View</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                      onPress={() => handleDeleteLand(land.id)}
+                      style={styles.deleteButton}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#FF4444" />
+                    </TouchableOpacity>
               </View>
             ))}
           </View>
@@ -368,6 +369,7 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     padding: 4,
+    marginLeft: 14,
   },
   landLocation: {
     fontSize: 14,
