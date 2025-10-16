@@ -57,6 +57,8 @@ export default function RootLayout() {
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
         <Stack.Screen name="land-management" options={{ headerShown: false }} />
         <Stack.Screen name="land-selector" options={{ headerShown: false }} />
+        <Stack.Screen name="account-settings" options={{ headerShown: false }} />
+        <Stack.Screen name="gps-land-selector" options={{headerShown: false}}/>
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
