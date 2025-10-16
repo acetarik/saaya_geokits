@@ -25,24 +25,23 @@ service firebase.storage {
     }
     
     // Profile Images Rules
-    // Path format: profile-images/profile_{userId}_{timestamp}.jpg
-    match /profile-images/{imageId} {
+    // Path format: profile-images/{userId}/{imageId}
+    match /profile-images/{userId}/{imageId} {
       // Anyone authenticated can read profile images
       allow read: if isAuthenticated();
       
-      // Users can only upload their own profile images
-      // Filename must start with "profile_{userId}_"
+      // Users can upload their own profile images
+      // Allow both authenticated uploads and initial signup uploads (matching userId)
       allow create: if isAuthenticated()
-                    && imageId.matches('profile_' + request.auth.uid + '_[0-9]+\\.jpg')
+                    && isOwner(userId)
                     && isImageFile()
                     && isValidSize();
       
       // Users can delete their own profile images
-      allow delete: if isAuthenticated()
-                    && imageId.matches('profile_' + request.auth.uid + '_[0-9]+\\.jpg');
+      allow delete: if isAuthenticated() && isOwner(userId);
       
-      // Update is not allowed (delete and create new instead)
-      allow update: if false;
+      // Users can update their own profile images
+      allow update: if isAuthenticated() && isOwner(userId);
     }
     
     // Land Images Rules (for future use - photos of land boundaries)

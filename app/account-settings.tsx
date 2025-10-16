@@ -83,9 +83,9 @@ export default function AccountSettingsScreen() {
       const response = await fetch(uri);
       const blob = await response.blob();
 
-      // Create a unique filename
-      const filename = `profile_${auth.currentUser.uid}_${Date.now()}.jpg`;
-      const storageRef = ref(storage, `profile-images/${filename}`);
+      // Create a unique filename with userId in the path
+      const timestamp = Date.now();
+      const storageRef = ref(storage, `profile-images/${auth.currentUser.uid}/${timestamp}.jpg`);
 
       // Upload the blob
       await uploadBytes(storageRef, blob);
